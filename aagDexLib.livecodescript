@@ -64,6 +64,36 @@ command dexPublish pType, pDataA
    end if
 end dexPublish
 
+
+function dexGet pKeyID
+   get url "http://localhost:9898/get?id=" & urlencode(pKeyID)
+   if the result is not empty then
+      dexError "Can't get content:" && the result && it
+      return it
+   else
+      return jsontoarray(it)
+   end if
+end dexGet
+
+
+function dexFeed pAuthor, pSequenceFrom, pLimit
+   put "?author=" & urlencode(pAuthor) into tParams
+   if pSequenceFrom is not empty then 
+      put "&sequence_from=" & pSequenceFrom after tParams
+   end if
+   if pLimit is not empty then 
+      put "&limit=" & pLimit after tParams
+   end if
+   
+   get url ("http://localhost:9898/feed" & tParams)
+   if the result is not empty then
+      dexError "Can't get feed:" && the result && it
+      return it
+   else
+      return jsontoarray(it)
+   end if
+end dexFeed
+
 function dexFolder pPath
    if pPath is empty then
       return the home folder & "/.dex_store"
@@ -98,14 +128,14 @@ on _dexHTTPCallback pSocketID, pRequestA
                if pRequestA["parameters"]["id"] is empty then
                   httpdResponse pSocketID, 400, "error: no feed id given"
                end if
-               put dexGet(pRequestA["parameters"]["id"]) into tA
+               put _dexGet(pRequestA["parameters"]["id"]) into tA
                httpdResponse pSocketID, 200, ArrayToJSON(tA)
                break
             case pRequestA["resource"] is "/feed"
                if pRequestA["parameters"]["author"] is empty then
                   httpdResponse pSocketID, 400, "error: no author given"
-               end if
-               put dexFeed(pRequestA["parameters"]["author"], \
+               end if 
+               put _dexFeed(pRequestA["parameters"]["author"], \
                      pRequestA["parameters"]["from_sequence"], \
                      pRequestA["parameters"]["limit"]) into tA
                
@@ -265,16 +295,16 @@ function dexLastMessageID
    end if
 end dexLastMessageID
 
-function dexGet pKeyID
+private function _dexGet pKeyID
    dbWhere "key", pKeyID
    dbLimit 1
    put dbGet("feed", sConnectionID) into tA
    put JSONToArray(tA[1]["content"]) into tA[1]["content"]
    return tA[1]
-end dexGet
+end _dexGet
 
 
-function dexFeed pAuthorID, pSequenceOffset, pLimit
+private function _dexFeed pAuthorID, pSequenceOffset, pLimit
    if pSequenceOffset is empty then put 0 into pSequenceOffset
    if pLimit is empty then put 100 into pLimit
    
@@ -291,7 +321,7 @@ function dexFeed pAuthorID, pSequenceOffset, pLimit
       put JSONToArray(tA[k]["content"]) into tA[k]["content"]
    end repeat
    return tA
-end dexFeed
+end _dexFeed
 
 private command _addToFeed pType, pDataA
    local tDataA
