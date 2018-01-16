@@ -101,6 +101,16 @@ on _dexHTTPCallback pSocketID, pRequestA
                put dexGet(pRequestA["parameters"]["id"]) into tA
                httpdResponse pSocketID, 200, ArrayToJSON(tA)
                break
+            case pRequestA["resource"] is "/feed"
+               if pRequestA["parameters"]["author"] is empty then
+                  httpdResponse pSocketID, 400, "error: no author given"
+               end if
+               put dexFeed(pRequestA["parameters"]["author"], \
+                     pRequestA["parameters"]["from_sequence"], \
+                     pRequestA["parameters"]["limit"]) into tA
+               
+               httpdResponse pSocketID, 200, ArrayToJSON(tA)
+               break
          end switch
          break
       case "POST"
@@ -262,6 +272,26 @@ function dexGet pKeyID
    put JSONToArray(tA[1]["content"]) into tA[1]["content"]
    return tA[1]
 end dexGet
+
+
+function dexFeed pAuthorID, pSequenceOffset, pLimit
+   if pSequenceOffset is empty then put 0 into pSequenceOffset
+   if pLimit is empty then put 100 into pLimit
+   
+   try
+      dbWhere "author", pAuthorID
+      dbLimit pLimit
+      dbWhere "sequence >=", pSequenceOffset
+   catch n
+      breakpoint
+   end try
+   
+   put dbGet("feed", sConnectionID) into tA
+   repeat for each key k in tA
+      put JSONToArray(tA[k]["content"]) into tA[k]["content"]
+   end repeat
+   return tA
+end dexFeed
 
 private command _addToFeed pType, pDataA
    local tDataA
