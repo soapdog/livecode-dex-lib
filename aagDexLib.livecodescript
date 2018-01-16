@@ -1,0 +1,195 @@
+﻿script "aagDexLib"
+constant kFeedFile = "/feed.sqlite"
+
+local sConnectionID
+local sDataA
+
+on libraryStack
+   put the seconds && the stacksinuse
+   --   if the short name of this stack is among the lines of the stacksinuse then
+   --      pass libraryStack
+   --   end if
+   
+   put the defaultfolder into tDF
+   set the itemdel to "/"
+   set the defaultfolder to item 1 to -2 of the effective filename of this stack
+   --   start using stack "aagDBLib.livecode"
+   
+   _checkSetup
+   _loadIdentity
+   
+   if not dexIsRunning() then
+      _openFeedDatabase
+      dexStart
+   end if
+   set the defaultfolder to tDF
+end libraryStack
+
+--> DEX Routines
+
+function dexIsRunning
+   return false
+end dexIsRunning
+   
+function dexFolder pPath
+   if pPath is empty then
+      return the home folder & "/.dex_store"
+   else
+      return the home folder & "/.dex_store" & pPath
+   end if
+end dexFolder
+
+private command _checkSetup
+   _checkFolders
+   _checkSanity
+end _checkSetup
+
+private command _checkFolders
+   if there is not a folder dexFolder() then
+      create folder dexFolder()
+   end if
+end _checkFolders
+
+private command _checkSanity
+   if there is not a file dexFolder(kFeedFile) then
+      _createDatabase
+   end if
+   
+   if there is not a file dexFolder("/secret.json")  then
+      _createIdentity
+   end if 
+end _checkSanity
+
+private command _createDatabase
+   put the defaultFolder into tDF
+   set the itemdel to "/"
+   set the defaultFolder to item 1 to -2 of the effective filename of this stack
+   revCopyFile "feed.sqlite", dexFolder(kFeedFile)
+   set the defaultFolder to tDF
+end _createDatabase
+
+private command _triggerError pErr
+   answer error pErr
+end _triggerError
+
+private command _loadIdentity
+   if there is a file dexFolder("/secret.json") then
+      put url ("binfile:" & dexFolder("/secret.json")) into tTemp
+      put jsonToArray(tTemp) into sDataA["identity"]
+      if sDataA["identity"]["public"] is empty then
+         throw "keyerr: public key broken in secret.json"
+      end if
+      if sDataA["identity"]["private"] is empty then
+         throw "keyerr: private key broken in secret.json"
+      end if
+   else
+      throw "keyerr: no secret.json found."
+   end if
+end _loadIdentity
+
+private command _createIdentity pPublicKeyPath, pPrivateKeyPath
+   -- secret not found, try to load from SSH
+   if pPublicKeyPath is empty then
+      put the home folder & "/.ssh/id_rsa.pub" into pPublicKeyPath
+   end if
+   
+   if pPrivateKeyPath is empty then
+      put the home folder & "/.ssh/id_rsa" into pPrivateKeyPath
+   end if
+   
+   if there is not a file pPublicKeyPath then
+      throw "keyerr: ssh public key not found"
+   end if
+   
+   if there is not a file pPrivateKeyPath then
+      throw "keyerr: private key not found"
+   end if
+   
+   put url ("binfile:" & pPublicKeyPath) into sDataA["identity"]["public"]
+   put url ("binfile:" & pPrivateKeyPath) into sDataA["identity"]["private"]
+   
+   put arrayToJson(sDataA["identity"]) into url ("binfile:" & dexFolder("/secret.json"))
+end _createIdentity
+
+--> Feed routines
+
+private command _openFeedDatabase
+   get revOpenDatabase("sqlite", dexFolder(kFeedFile),,,)
+   if it is a number then
+      put it into sConnectionID
+   else
+      answer error it
+   end if
+end _openFeedDatabase
+
+function dexAuthorID
+   set the itemdel to " "
+   put item -1 of sDataA["identity"]["public"] into tTemp
+   put messageAuthenticationCode(tTemp, sDataA["identity"]["public"], "HMAC-SHA-256") into tHash
+   return "@" & base64encode(tHash) & ".sha256"
+end dexAuthorID
+
+function dexAuthorPublicKey
+   return sDataA["identity"]["public"]
+end dexAuthorPublicKey
+
+private function _dexAuthorPrivateKey
+   return sDataA["identity"]["private"]
+end _dexAuthorPrivateKey
+
+function dexLastSequence
+   dbOrderBy "sequence desc"
+   dbColumns "sequence"
+   dbWhere "author", dexAuthorID()
+   put dbGet("feed", sConnectionID) into tA
+   if tA is empty then
+      return 0
+   else
+      return tA[1]["sequence"]
+   end if
+end dexLastSequence
+
+function dexLastMessageID
+   dbOrderBy "sequence desc"
+   dbColumns "key"
+   dbWhere "author", dexAuthorID()
+   put dbGet("feed", sConnectionID) into tA
+   if tA is empty then
+      return empty
+   else
+      return tA[1]["key"]
+   end if
+end dexLastMessageID
+
+private command _addToFeed pType, pDataA
+   local tDataA
+   put dexLastSequence() into tSeq
+   put dexAuthorID() into tDataA["author"]
+   add 1 to tSeq
+   put dexLastMessageID() into tDataA["previous"]
+   put tSeq into tDataA["sequence"]
+   put pType into tDataA["type"]
+   put the milliseconds into tDataA["timestamp"]
+   put the milliseconds into tDataA["timestamp_received"]
+   put arrayToJson(pDataA) into tDataA["content"]
+   put "sha256" into tDataA["hash"]
+   
+   -- compute signature
+   put arrayToJson(tDataA) into tTemp
+   encrypt tTemp using rsa with private key _dexAuthorPrivateKey() 
+   put it into tHash
+   put base64Encode(tHash) into tDataA["signature"]
+   
+   -- compute final part which is the key
+   put arrayToJson(tDataA) into tTemp
+   put dexAuthorPublicKey() into tKey
+   put messageAuthenticationCode(tTemp, tKey, "HMAC-SHA-256") into tHash
+   put "%" & base64encode(tHash) & ".sha256" into tDataA["key"]
+   
+   -- add to feed
+   get dbInsert("feed", tDataA, sConnectionID)
+   if it is not 1 then
+      throw "feederr: could not insert new entry:" && it
+   end if
+   return tDataA["key"]   
+end _addToFeed
