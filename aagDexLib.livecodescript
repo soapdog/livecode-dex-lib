@@ -5,25 +5,25 @@ local sConnectionID
 local sDataA
 
 on libraryStack
-   if the short name of this stack is not among the lines of the stacksinuse then
-      
-      
-      put the defaultfolder into tDF
-      set the itemdel to "/"
-      set the defaultfolder to item 1 to -2 of the effective filename of this stack
-      --   start using stack "aagDBLib.livecode"
-      
-      _checkSetup
-      _loadIdentity
-      
-      if not dexIsRunning() then
-         _openFeedDatabase
-         dexStart
-      end if
-      set the defaultfolder to tDF
-   else
-      answer "ja to la"
+   if the target is not me then 
+      pass libraryStack
    end if
+   
+   
+   put the defaultfolder into tDF
+   set the itemdel to "/"
+   set the defaultfolder to item 1 to -2 of the effective filename of this stack
+   start using stack "aagDBLib.livecode"
+   
+   _checkSetup
+   _loadIdentity
+   
+   if not dexIsRunning() then
+      _openFeedDatabase
+      dexStart
+   end if
+   set the defaultfolder to tDF
+
 end libraryStack
 
 --> Logging routines
@@ -94,7 +94,13 @@ on _dexHTTPCallback pSocketID, pRequestA
             case pRequestA["resource"] is "/running"
                httpdResponse pSocketID, 200, "TRUE"
                break
-               
+            case pRequestA["resource"] is "/get"
+               if pRequestA["parameters"]["id"] is empty then
+                  httpdResponse pSocketID, 400, "error: no feed id given"
+               end if
+               put dexGet(pRequestA["parameters"]["id"]) into tA
+               httpdResponse pSocketID, 200, ArrayToJSON(tA)
+               break
          end switch
          break
       case "POST"
@@ -248,6 +254,14 @@ function dexLastMessageID
       return tA[1]["key"]
    end if
 end dexLastMessageID
+
+function dexGet pKeyID
+   dbWhere "key", pKeyID
+   dbLimit 1
+   put dbGet("feed", sConnectionID) into tA
+   put JSONToArray(tA[1]["content"]) into tA[1]["content"]
+   return tA[1]
+end dexGet
 
 private command _addToFeed pType, pDataA
    local tDataA
