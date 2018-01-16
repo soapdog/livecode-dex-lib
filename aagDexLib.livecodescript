@@ -54,6 +54,9 @@ end dexIsRunning
 
 command dexPublish pType, pDataA
    put pType into pDataA["type"]
+   if pDataA["timestamp"] is empty then 
+      put the seconds into pDataA["timestamp"]
+   end if
    set the httpHeaders to "content-type: application/json"
    post ArrayToJSON(pDataA) to url "http://localhost:9898/publish"
    if the result is not empty then
@@ -157,13 +160,15 @@ on _dexHTTPCallback pSocketID, pRequestA
                   pass _dexHTTPCallback
                end try
                put tDataA["type"] into tType
+               put tDataA["timestamp"] into tClaimedTimestamp
                if tType is empty then
                   httpdResponse pSocketID, 400, "error: can't publish without type"
                   pass _dexHTTPCallback
                end if
                delete variable tDataA["type"]
+               delete variable tDataA["timestamp"]
                
-               _addToFeed tType, tDataA
+               _addToFeed tType, tDataA, tClaimedTimestamp
                httpdResponse pSocketID, 200, the result
                break
          end switch
@@ -323,7 +328,7 @@ private function _dexFeed pAuthorID, pSequenceOffset, pLimit
    return tA
 end _dexFeed
 
-private command _addToFeed pType, pDataA
+private command _addToFeed pType, pDataA, pClaimedTimestamp
    local tDataA
    put dexLastSequence() into tSeq
    put dexAuthorID() into tDataA["author"]
@@ -331,8 +336,8 @@ private command _addToFeed pType, pDataA
    put dexLastMessageID() into tDataA["previous"]
    put tSeq into tDataA["sequence"]
    put toLower(pType) into tDataA["type"]
-   put the milliseconds into tDataA["timestamp"]
-   put the milliseconds into tDataA["timestamp_received"]
+   put pClaimedTimestamp into tDataA["timestamp"]
+   put the seconds into tDataA["timestamp_received"]
    put arrayToJson(pDataA) into tDataA["content"]
    put "sha256" into tDataA["hash"]
    
