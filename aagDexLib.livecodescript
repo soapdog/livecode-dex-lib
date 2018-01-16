@@ -25,10 +25,30 @@ on libraryStack
    set the defaultfolder to tDF
 end libraryStack
 
+--> Logging routines
+on dexLog pMsg
+   put (the short date && the short time && "--" && pMsg & crlf) after url ("binfile:" & dexFolder("dex.log"))
+end dexLog
+
+on dexInfo pMsg
+   dexLog "[INFO]" && pMsg
+end dexInfo
+
+on dexError pMsg
+   dexLog "[ERROR]" && pMsg
+end dexError
+
 --> DEX Routines
 
 function dexIsRunning
-   return false
+   get url "http://localhost:9898/running"
+   if it is "TRUE" then
+      dexInfo "Local Dex server is running."
+      return true
+   else
+      dexInfo "Local Dex server NOT running."
+      return false
+   end if
 end dexIsRunning
    
 function dexFolder pPath
@@ -38,6 +58,28 @@ function dexFolder pPath
       return the home folder & "/.dex_store" & pPath
    end if
 end dexFolder
+
+command dexStart
+   httpdStart "_dexHTTPCallback", 9898, "Dex Server"
+   dexInfo "Server started on port 9898."
+end dexStart
+
+private on _dexHTTPCallback pSocketID, pRequestA
+   dexInfo pRequestA["method"] && pRequestA["resource"]
+   
+   switch pRequestA["method"]
+      case "GET"
+         switch
+            case pRequestA["resource"] is "/running"
+               httpdResponse pSocketID, 200, "TRUE"
+               break
+         end switch
+         break
+      case "POST"
+         
+         break
+   end switch
+end _dexHTTPCallback
 
 private command _checkSetup
    _checkFolders
