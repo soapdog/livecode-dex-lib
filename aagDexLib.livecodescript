@@ -61,7 +61,11 @@ end dexFolder
 
 command dexStart
    httpdStart "_dexHTTPCallback", 9898, "Dex Server"
-   dexInfo "Server started on port 9898."
+   if the result is empty and it is 9898 then
+      dexInfo "Server started on port 9898."
+   else
+      dexError "Problem starting server:" && the result
+   end if
 end dexStart
 
 private on _dexHTTPCallback pSocketID, pRequestA
