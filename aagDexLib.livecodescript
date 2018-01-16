@@ -5,29 +5,30 @@ local sConnectionID
 local sDataA
 
 on libraryStack
-   put the seconds && the stacksinuse
-   --   if the short name of this stack is among the lines of the stacksinuse then
-   --      pass libraryStack
-   --   end if
-   
-   put the defaultfolder into tDF
-   set the itemdel to "/"
-   set the defaultfolder to item 1 to -2 of the effective filename of this stack
-   --   start using stack "aagDBLib.livecode"
-   
-   _checkSetup
-   _loadIdentity
-   
-   if not dexIsRunning() then
-      _openFeedDatabase
-      dexStart
+   if the short name of this stack is not among the lines of the stacksinuse then
+      
+      
+      put the defaultfolder into tDF
+      set the itemdel to "/"
+      set the defaultfolder to item 1 to -2 of the effective filename of this stack
+      --   start using stack "aagDBLib.livecode"
+      
+      _checkSetup
+      _loadIdentity
+      
+      if not dexIsRunning() then
+         _openFeedDatabase
+         dexStart
+      end if
+      set the defaultfolder to tDF
+   else
+      answer "ja to la"
    end if
-   set the defaultfolder to tDF
 end libraryStack
 
 --> Logging routines
 on dexLog pMsg
-   put (the short date && the short time && "--" && pMsg & crlf) after url ("binfile:" & dexFolder("dex.log"))
+   put (the short date && the short time && "--" && pMsg & crlf) after url ("binfile:" & dexFolder("/dex.log"))
 end dexLog
 
 on dexInfo pMsg
@@ -50,7 +51,19 @@ function dexIsRunning
       return false
    end if
 end dexIsRunning
-   
+
+command dexPublish pType, pDataA
+   put pType into pDataA["type"]
+   set the httpHeaders to "content-type: application/json"
+   post ArrayToJSON(pDataA) to url "http://localhost:9898/publish"
+   if the result is not empty then
+      dexError "Can't publish content:" && the result && it
+      return it
+   else
+      return it
+   end if
+end dexPublish
+
 function dexFolder pPath
    if pPath is empty then
       return the home folder & "/.dex_store"
@@ -68,8 +81,12 @@ command dexStart
    end if
 end dexStart
 
-private on _dexHTTPCallback pSocketID, pRequestA
-   dexInfo pRequestA["method"] && pRequestA["resource"]
+private function _LocalRequest pSocketID
+   return "127.0.0.1:" is in pSocketID
+end _LocalRequest
+
+on _dexHTTPCallback pSocketID, pRequestA
+   dexInfo pRequestA["method"] && pRequestA["resource"] 
    
    switch pRequestA["method"]
       case "GET"
@@ -77,12 +94,37 @@ private on _dexHTTPCallback pSocketID, pRequestA
             case pRequestA["resource"] is "/running"
                httpdResponse pSocketID, 200, "TRUE"
                break
+               
          end switch
          break
       case "POST"
+         switch
+            case _LocalRequest(pSocketID) and pRequestA["resource"] is "/publish"
+               if pRequestA["content"] is empty then
+                  httpdResponse pSocketID, 400, "error: can't publish without content"
+                  pass _dexHTTPCallback
+               end if
+               try
+                  put JSONToArray(pRequestA["content"]) into tDataA
+               catch n
+                  httpdResponse pSocketID, 400, "error: can't publish, content not json"
+                  pass _dexHTTPCallback
+               end try
+               put tDataA["type"] into tType
+               if tType is empty then
+                  httpdResponse pSocketID, 400, "error: can't publish without type"
+                  pass _dexHTTPCallback
+               end if
+               delete variable tDataA["type"]
+               
+               _addToFeed tType, tDataA
+               httpdResponse pSocketID, 200, the result
+               break
+         end switch
          
          break
    end switch
+   httpdResponse pSocketID, 404, "resource not found"
 end _dexHTTPCallback
 
 private command _checkSetup
@@ -214,7 +256,7 @@ private command _addToFeed pType, pDataA
    add 1 to tSeq
    put dexLastMessageID() into tDataA["previous"]
    put tSeq into tDataA["sequence"]
-   put pType into tDataA["type"]
+   put toLower(pType) into tDataA["type"]
    put the milliseconds into tDataA["timestamp"]
    put the milliseconds into tDataA["timestamp_received"]
    put arrayToJson(pDataA) into tDataA["content"]
