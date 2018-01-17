@@ -60,8 +60,12 @@ command dexPublish pType, pDataA
    set the httpHeaders to "content-type: application/json"
    post ArrayToJSON(pDataA) to url "http://localhost:9898/publish"
    if the result is not empty then
+      put the result into tError
       dexError "Can't publish content:" && the result && it
-      return it
+      if "tsneterr" is in tError then
+         dexError "TSNeterror!!!! Argh, reboot dex server"
+      end if
+      return "error:" && tError
    else
       return it
    end if
@@ -95,7 +99,7 @@ on _dexUDPFinishedBroadcasting pSocketID
    close socket pSocketID
 end _dexUDPFinishedBroadcasting
    
-   function dexFeed pAuthor, pSequenceFrom, pLimit
+function dexFeed pAuthor, pSequenceFrom, pLimit
    put "?author=" & urlencode(pAuthor) into tParams
    if pSequenceFrom is not empty then 
       put "&sequence_from=" & pSequenceFrom after tParams
@@ -112,6 +116,15 @@ end _dexUDPFinishedBroadcasting
       return jsontoarray(it)
    end if
 end dexFeed
+
+on dexHandshake pSocket
+   put sDataA["peers"][pSocket] into tA
+   dexGossip tA
+end dexHandshake
+
+on dexGossip pPeerA
+   
+end dexGossip
 
 function dexFolder pPath
    if pPath is empty then
@@ -145,9 +158,11 @@ on _dexUDPCallback pSocketID, pData
          pass _dexUDPCallback
       end if
       if tA["author"] is not empty and tA["public"] is not empty then
-         put pSocketID into tA["socket"]
-         put tA into sDataA["peers"][pSocketID]
+         set the itemdel to ":"
+         put item 1 of pSocketID into tA["socket"]
+         put tA into sDataA["peers"][tA["socket"]]
          dexInfo "new peer found" && tA["author"]
+         dexHandshake tA["socket"]
          
       end if
    catch m
@@ -240,7 +255,7 @@ private command _createDatabase
    put the defaultFolder into tDF
    set the itemdel to "/"
    set the defaultFolder to item 1 to -2 of the effective filename of this stack
-   revCopyFile "feed.sqlite", dexFolder(kFeedFile)
+   put url "binfile:feed.sqlite" into url ("binfile:" & dexFolder(kFeedFile))
    set the defaultFolder to tDF
 end _createDatabase
 
