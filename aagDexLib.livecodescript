@@ -330,10 +330,13 @@ private function _dexAuthorPrivateKey
    return sDataA["identity"]["private"]
 end _dexAuthorPrivateKey
 
-function dexLastSequence
+function dexLastSequence pAuthorID
+   if pAuthorID is empty then
+      put dexAuthorID() into pAuthorID
+   end if
    dbOrderBy "sequence desc"
    dbColumns "sequence"
-   dbWhere "author", dexAuthorID()
+   dbWhere "author", pAuthorID
    put dbGet("feed", sConnectionID) into tA
    if tA is empty then
       return 0
@@ -342,10 +345,13 @@ function dexLastSequence
    end if
 end dexLastSequence
 
-function dexLastMessageID
+function dexLastMessageID pAuthorID
+   if pAuthorID is empty then
+      put dexAuthorID() into pAuthorID
+   end if
    dbOrderBy "sequence desc"
    dbColumns "key"
-   dbWhere "author", dexAuthorID()
+   dbWhere "author", pAuthorID
    put dbGet("feed", sConnectionID) into tA
    if tA is empty then
       return empty
