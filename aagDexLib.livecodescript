@@ -173,6 +173,8 @@ end _dexUDPCallback
 on _dexHTTPCallback pSocketID, pRequestA
    dexInfo pRequestA["method"] && pRequestA["resource"] 
    
+   put "Content-type: application/json" into tHeaders
+   
    switch pRequestA["method"]
       case "GET"
          switch
@@ -184,7 +186,7 @@ on _dexHTTPCallback pSocketID, pRequestA
                   httpdResponse pSocketID, 400, "error: no feed id given"
                end if
                put _dexGet(pRequestA["parameters"]["id"]) into tA
-               httpdResponse pSocketID, 200, ArrayToJSON(tA)
+               httpdResponse pSocketID, 200, ArrayToJSON(tA), tHeaders
                break
             case pRequestA["resource"] is "/feed"
                if pRequestA["parameters"]["author"] is empty then
@@ -194,7 +196,7 @@ on _dexHTTPCallback pSocketID, pRequestA
                      pRequestA["parameters"]["from_sequence"], \
                      pRequestA["parameters"]["limit"]) into tA
                
-               httpdResponse pSocketID, 200, ArrayToJSON(tA)
+               httpdResponse pSocketID, 200, ArrayToJSON(tA), tHeaders
                break
          end switch
          break
