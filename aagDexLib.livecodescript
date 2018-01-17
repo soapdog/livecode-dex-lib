@@ -138,7 +138,21 @@ private function _LocalRequest pSocketID
 end _LocalRequest
 
 on _dexUDPCallback pSocketID, pData
-   dexInfo "UDP Datagram arrived:" && pData
+   dexInfo "UDP Datagram arrived from" && pSocketID &":" && pData
+   try
+      put jsontoarray(pData) into tA
+      if tA["author"] is dexAuthorID() then
+         pass _dexUDPCallback
+      end if
+      if tA["author"] is not empty and tA["public"] is not empty then
+         put pSocketID into tA["socket"]
+         put tA into sDataA["peers"][pSocketID]
+         dexInfo "new peer found" && tA["author"]
+         
+      end if
+   catch m
+      dexError "UDP Datagram is not JSON"
+   end try
 end _dexUDPCallback
 
 on _dexHTTPCallback pSocketID, pRequestA
