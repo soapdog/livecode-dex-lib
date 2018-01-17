@@ -78,8 +78,17 @@ function dexGet pKeyID
    end if
 end dexGet
 
+command dexBroadcast pData
+   set the allowDatagramBroadcasts to true
+   open datagram socket to "255.255.255.255:9009"
+   write pData to socket "255.255.255.255:9009" with message "_dexUDPFinishedBroadcasting"
+end dexBroadcast
 
-function dexFeed pAuthor, pSequenceFrom, pLimit
+on _dexUDPFinishedBroadcasting pSocketID
+   close socket pSocketID
+end _dexUDPFinishedBroadcasting
+   
+   function dexFeed pAuthor, pSequenceFrom, pLimit
    put "?author=" & urlencode(pAuthor) into tParams
    if pSequenceFrom is not empty then 
       put "&sequence_from=" & pSequenceFrom after tParams
@@ -109,6 +118,8 @@ command dexStart
    httpdStart "_dexHTTPCallback", 9898, "Dex Server"
    if the result is empty and it is 9898 then
       dexInfo "Server started on port 9898."
+      accept datagram connections on port 9009 with message "_dexUDPCallback"
+      dexInfo "UDP server started on port 9009"
    else
       dexError "Problem starting server:" && the result
    end if
@@ -117,6 +128,10 @@ end dexStart
 private function _LocalRequest pSocketID
    return "127.0.0.1:" is in pSocketID
 end _LocalRequest
+
+on _dexUDPCallback pSocketID, pData
+   dexInfo "UDP Datagram arrived:" && pData
+end _dexUDPCallback
 
 on _dexHTTPCallback pSocketID, pRequestA
    dexInfo pRequestA["method"] && pRequestA["resource"] 
