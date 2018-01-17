@@ -84,6 +84,13 @@ command dexBroadcast pData
    write pData to socket "255.255.255.255:9009" with message "_dexUDPFinishedBroadcasting"
 end dexBroadcast
 
+command dexAnnounceSelf
+   put dexAuthorID() into tA["author"]
+   put dexAuthorPublicKey() into tA["public"]
+   dexBroadcast ArrayToJSON(tA)
+   dexInfo "Broadcast own identity"
+end dexAnnounceSelf
+
 on _dexUDPFinishedBroadcasting pSocketID
    close socket pSocketID
 end _dexUDPFinishedBroadcasting
@@ -120,6 +127,7 @@ command dexStart
       dexInfo "Server started on port 9898."
       accept datagram connections on port 9009 with message "_dexUDPCallback"
       dexInfo "UDP server started on port 9009"
+      dexAnnounceSelf
    else
       dexError "Problem starting server:" && the result
    end if
