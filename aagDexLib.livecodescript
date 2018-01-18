@@ -1,5 +1,6 @@
 ﻿script "aagDexLib"
 constant kFeedFile = "/feed.sqlite"
+constant kBypassLocalServer = true
 
 local sConnectionID
 local sDataA
@@ -73,6 +74,9 @@ end dexPublish
 
 
 function dexGet pKeyID
+   if kBypassLocalServer then
+      return _dexGet(pKeyID)
+   end if
    get url ("http://localhost:9898/get?id=" & urlencode(pKeyID))
    if the result is not empty then
       dexError "Can't get content:" && the result && it
@@ -114,6 +118,9 @@ command _dexDispatchCallbacks pType, pData
 end _dexDispatchCallbacks
    
 function dexFeed pAuthor, pSequenceFrom, pLimit
+   if kBypassLocalServer then
+      return _dexFeed(pAuthor, pSequenceFrom, pLimit)
+   end if
    if pAuthor then
       put "author=" & urlencode(pAuthor) into tParams
    end if
