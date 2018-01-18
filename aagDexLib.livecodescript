@@ -73,7 +73,7 @@ end dexPublish
 
 
 function dexGet pKeyID
-   get url "http://localhost:9898/get?id=" & urlencode(pKeyID)
+   get url ("http://localhost:9898/get?id=" & urlencode(pKeyID))
    if the result is not empty then
       dexError "Can't get content:" && the result && it
       return it
@@ -127,7 +127,7 @@ function dexFeed pAuthor, pSequenceFrom, pLimit
    get url ("http://localhost:9898/feed?" & tParams)
    if the result is not empty then
       dexError "Can't get feed:" && the result && it
-      return it
+      return the result
    else
       return jsontoarray(it)
    end if
@@ -257,6 +257,7 @@ on _dexHTTPCallback pSocketID, pRequestA
             case pRequestA["resource"] is "/get"
                if pRequestA["parameters"]["id"] is empty then
                   httpdResponse pSocketID, 400, "error: no feed id given"
+                  break
                end if
                put _dexGet(pRequestA["parameters"]["id"]) into tA
                httpdResponse pSocketID, 200, ArrayToJSON(tA), tHeaders
