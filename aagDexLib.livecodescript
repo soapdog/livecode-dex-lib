@@ -133,6 +133,7 @@ on dexGossip pPeerA
       return it
    else
       put jsontoarray(it) into tFeedA
+      breakpoint
       _importToFeed tFeedA
    end if
 end dexGossip
@@ -204,7 +205,7 @@ on _dexHTTPCallback pSocketID, pRequestA
                   httpdResponse pSocketID, 400, "error: no author given"
                end if 
                put _dexFeed(pRequestA["parameters"]["author"], \
-                     pRequestA["parameters"]["from_sequence"], \
+                     pRequestA["parameters"]["sequence_from"], \
                      pRequestA["parameters"]["limit"]) into tA
                
                httpdResponse pSocketID, 200, ArrayToJSON(tA), tHeaders
