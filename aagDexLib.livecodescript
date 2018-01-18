@@ -83,6 +83,10 @@ function dexGet pKeyID
 end dexGet
 
 command dexBroadcast pData
+   if the milliseconds - sDataA["last broadcast"] < 2000 then
+      pass dexBroadcast
+   end if
+   put the milliseconds into sDataA["last broadcast"]
    set the allowDatagramBroadcasts to true
    open datagram socket to "255.255.255.255:9009"
    write pData to socket "255.255.255.255:9009" with message "_dexUDPFinishedBroadcasting"
