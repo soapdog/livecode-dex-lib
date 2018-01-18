@@ -534,5 +534,5 @@ on _importToFeed pFeedA
       end if
    end repeat
    _dexDispatchCallbacks "afterImportFeed"
-   dexAnnounceSelf
+   --dexAnnounceSelf
 end _importToFeed
