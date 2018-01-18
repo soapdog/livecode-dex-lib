@@ -445,7 +445,7 @@ on _importToFeed pFeedA
       put pFeedA[k] into tA
       put arraytojson(tA["content"]) into tA["content"]
       put the seconds into tA["timestamp_received"]
-      get dbInsert("feed", tDataA, sConnectionID)
+      get dbInsert("feed", tA, sConnectionID)
       if it is not 1 then
          dexError "feederr: could not insert new entry:" && it
       else
