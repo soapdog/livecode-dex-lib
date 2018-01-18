@@ -448,6 +448,8 @@ on _importToFeed pFeedA
       get dbInsert("feed", tDataA, sConnectionID)
       if it is not 1 then
          dexError "feederr: could not insert new entry:" && it
+      else
+         dexInfo "imported entry" && tA["key"]
       end if
    end repeat
 end _importToFeed
