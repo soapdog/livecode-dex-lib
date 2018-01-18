@@ -157,6 +157,17 @@ function dexFeedFindLatestSequence pFeedA, pAuthor
    return pFeedA[tKey]
 end dexFeedFindLatestSequence
 
+function dexFindNameForAuthorID pFeedA pAuthorID
+   dexFeedFilterByAuthor pFeedA, pAuthorID
+   dexFeedFilterByType pFeedA, "about"
+   put dexFeedFindLatestSequence(pFeedA, pAuthorID) into tContactA
+   if tContactA["content"]["name"] is not empty then
+      return tContactA["content"]["name"]
+   else
+      return pAuthorID
+   end if
+end dexFindNameForAuthorID
+
 on dexHandshake pSocket
    put sDataA["peers"][pSocket] into tA
    dexGossip tA
@@ -482,7 +493,7 @@ private command _addToFeed pType, pDataA, pClaimedTimestamp
       throw "feederr: could not insert new entry:" && it
    end if
    dexAnnounceSelf
-   dexDispatchCallbacks "afterAddToFeed"
+   _dexDispatchCallbacks "afterAddToFeed"
    return tDataA["key"]   
 end _addToFeed
 
@@ -499,7 +510,7 @@ function dexFeedHasKey pKey
 end dexFeedHasKey
 
 on _importToFeed pFeedA
-   dexDispatchCallbacks "beforeImportFeed"
+   _dexDispatchCallbacks "beforeImportFeed"
    repeat for each key k in pFeedA
       put pFeedA[k] into tA
       if tA["key"] is empty then
@@ -517,6 +528,6 @@ on _importToFeed pFeedA
          dexInfo "imported entry" && tA["key"]
       end if
    end repeat
-   dexDispatchCallbacks "afterImportFeed"
+   _dexDispatchCallbacks "afterImportFeed"
    dexAnnounceSelf
 end _importToFeed
