@@ -123,7 +123,21 @@ on dexHandshake pSocket
 end dexHandshake
 
 on dexGossip pPeerA
-   
+   put "?author=" & urlencode(pPeerA["author"]) into tParams
+   if pSequenceFrom is not empty then 
+      put "&sequence_from=" & dexLastSequence(pPeerA["author"]) after tParams
+   end if
+   if pLimit is not empty then 
+      put "&limit=100" after tParams
+   end if
+   get url ("http://"&pPeerA["socket"]&":9898/feed?author=" & tParams)
+   if the result is not empty then
+      dexError "Can't get feed:" && the result && it
+      return it
+   else
+      put jsontoarray(it) into tFeedA
+      breakpoint
+   end if
 end dexGossip
 
 function dexFolder pPath
@@ -403,7 +417,13 @@ private command _addToFeed pType, pDataA, pClaimedTimestamp
    
    -- compute signature
    put arrayToJson(tDataA) into tTemp
-   encrypt tTemp using rsa with private key _dexAuthorPrivateKey() 
+   encrypt tTemp using rsa with private key _dexAuthorPrivateKey()
+   if the result is not empty then
+      put the result into tError
+      dexError "addtofeed error:" && tError
+      answer error "Can't add to feed:" && tError
+      return "error:" && tError
+   end if 
    put it into tHash
    put base64Encode(tHash) into tDataA["signature"]
    
