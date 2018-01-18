@@ -83,7 +83,7 @@ function dexGet pKeyID
 end dexGet
 
 command dexBroadcast pData
-   if the milliseconds - sDataA["last broadcast"] < 2000 then
+   if the milliseconds - sDataA["last broadcast"] < 500 then
       pass dexBroadcast
    end if
    put the milliseconds into sDataA["last broadcast"]
