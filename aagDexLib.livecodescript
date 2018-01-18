@@ -18,13 +18,13 @@ on libraryStack
    
    _checkSetup
    _loadIdentity
+   _openFeedDatabase
    
    if not dexIsRunning() then
-      _openFeedDatabase
       dexStart
    end if
    set the defaultfolder to tDF
-
+   
 end libraryStack
 
 --> Logging routines
