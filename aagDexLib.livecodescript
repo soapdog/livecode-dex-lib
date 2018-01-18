@@ -206,6 +206,13 @@ on dexGossip pPeerA, pAuthorID
    end if
 end dexGossip
 
+on dexRefreshAllPeers
+   repeat for each key k in sDataA["peers"]
+      dexGossip sDataA["peers"][k]
+      wait 2 seconds with messages
+   end repeat
+end dexRefreshAllPeers
+
 function dexFolder pPath
    if pPath is empty then
       return the home folder & "/.dex_store"
