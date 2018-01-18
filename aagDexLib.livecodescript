@@ -124,19 +124,16 @@ end dexHandshake
 
 on dexGossip pPeerA
    put "?author=" & urlencode(pPeerA["author"]) into tParams
-   if pSequenceFrom is not empty then 
-      put "&sequence_from=" & dexLastSequence(pPeerA["author"]) after tParams
-   end if
-   if pLimit is not empty then 
-      put "&limit=100" after tParams
-   end if
-   get url ("http://"&pPeerA["socket"]&":9898/feed?author=" & tParams)
+   put "&sequence_from=" & dexLastSequence(pPeerA["author"]) after tParams
+   put "&limit=100" after tParams
+   put  ("http://"&pPeerA["socket"]&":9898/feed" & tParams) into tURL
+   get url tURL
    if the result is not empty then
       dexError "Can't get feed:" && the result && it
       return it
    else
       put jsontoarray(it) into tFeedA
-      breakpoint
+      _importToFeed tFeedA
    end if
 end dexGossip
 
@@ -442,3 +439,15 @@ private command _addToFeed pType, pDataA, pClaimedTimestamp
    end if
    return tDataA["key"]   
 end _addToFeed
+
+on _importToFeed pFeedA
+   repeat for each key k in pFeedA
+      put pFeedA[k] into tA
+      put arraytojson(tA["content"]) into tA["content"]
+      put the seconds into tA["timestamp_received"]
+      get dbInsert("feed", tDataA, sConnectionID)
+      if it is not 1 then
+         dexError "feederr: could not insert new entry:" && it
+      end if
+   end repeat
+end _importToFeed
