@@ -98,9 +98,21 @@ end dexAnnounceSelf
 on _dexUDPFinishedBroadcasting pSocketID
    close socket pSocketID
 end _dexUDPFinishedBroadcasting
+
+command dexRegisterEventCallback pTarget, pCallback
+   put pCallback into sDataA["callbacks"][pTarget]
+end dexRegisterEventCallback
+
+command _dexDispatchCallbacks pType, pData
+   repeat for each key t in sDataA["callbacks"]
+      dispatch sDataA["callbacks"][t] to t with pType, pData
+   end repeat
+end _dexDispatchCallbacks
    
 function dexFeed pAuthor, pSequenceFrom, pLimit
-   put "?author=" & urlencode(pAuthor) into tParams
+   if pAuthor then
+      put "author=" & urlencode(pAuthor) into tParams
+   end if
    if pSequenceFrom is not empty then 
       put "&sequence_from=" & pSequenceFrom after tParams
    end if
@@ -108,7 +120,7 @@ function dexFeed pAuthor, pSequenceFrom, pLimit
       put "&limit=" & pLimit after tParams
    end if
    
-   get url ("http://localhost:9898/feed" & tParams)
+   get url ("http://localhost:9898/feed?" & tParams)
    if the result is not empty then
       dexError "Can't get feed:" && the result && it
       return it
@@ -116,6 +128,34 @@ function dexFeed pAuthor, pSequenceFrom, pLimit
       return jsontoarray(it)
    end if
 end dexFeed
+
+on dexFeedFilterByType @pFeedA, pType
+   repeat for each key k in pFeedA
+      if pFeedA[k]["type"] is not pType then
+         delete variable pFeedA[k]
+      end if
+   end repeat
+end dexFeedFilterByType
+
+
+on dexFeedFilterByAuthor @pFeedA, pAuthor
+   repeat for each key k in pFeedA
+      if pFeedA[k]["author"] is not pAuthor then
+         delete variable pFeedA[k]
+      end if
+   end repeat
+end dexFeedFilterByAuthor
+
+function dexFeedFindLatestSequence pFeedA, pAuthor
+   put 0 into tMax
+   repeat for each key k in pFeedA
+      if pFeedA[k]["sequence"] > tMax then
+         put pFeedA[k]["sequence"] into tMax
+         put k into tKey
+      end if
+   end repeat
+   return pFeedA[tKey]
+end dexFeedFindLatestSequence
 
 on dexHandshake pSocket
    put sDataA["peers"][pSocket] into tA
@@ -394,6 +434,7 @@ private function _dexFeed pAuthorID, pSequenceOffset, pLimit
    if pSequenceOffset is not empty then
       dbWhere "sequence >=", pSequenceOffset
    end if
+   dbOrderBy "timestamp"
    
    put dbGet("feed", sConnectionID) into tA
    repeat for each key k in tA
@@ -441,6 +482,7 @@ private command _addToFeed pType, pDataA, pClaimedTimestamp
       throw "feederr: could not insert new entry:" && it
    end if
    dexAnnounceSelf
+   dexDispatchCallbacks "afterAddToFeed"
    return tDataA["key"]   
 end _addToFeed
 
@@ -457,6 +499,7 @@ function dexFeedHasKey pKey
 end dexFeedHasKey
 
 on _importToFeed pFeedA
+   dexDispatchCallbacks "beforeImportFeed"
    repeat for each key k in pFeedA
       put pFeedA[k] into tA
       if tA["key"] is empty then
@@ -474,5 +517,6 @@ on _importToFeed pFeedA
          dexInfo "imported entry" && tA["key"]
       end if
    end repeat
+   dexDispatchCallbacks "afterImportFeed"
    dexAnnounceSelf
 end _importToFeed
