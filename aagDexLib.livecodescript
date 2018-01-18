@@ -122,9 +122,12 @@ on dexHandshake pSocket
    dexGossip tA
 end dexHandshake
 
-on dexGossip pPeerA
-   put "?author=" & urlencode(pPeerA["author"]) into tParams
-   put "&sequence_from=" & dexLastSequence(pPeerA["author"]) after tParams
+on dexGossip pPeerA, pAuthorID
+   if pAuthorID is empty then
+      put pPeerA["author"] into pAuthorID
+   end if
+   put "?author=" & urlencode(pAuthorID) into tParams
+   put "&sequence_from=" & dexLastSequence(pAuthorID) after tParams
    put "&limit=100" after tParams
    put  ("http://"&pPeerA["socket"]&":9898/feed" & tParams) into tURL
    get url tURL
@@ -133,8 +136,11 @@ on dexGossip pPeerA
       return it
    else
       put jsontoarray(it) into tFeedA
-      breakpoint
-      _importToFeed tFeedA
+      if tFeedA is an array then
+         _importToFeed tFeedA
+      else
+         dexInfo "no new entry from peer for" && pPeerA["author"]
+      end if
    end if
 end dexGossip
 
@@ -201,9 +207,6 @@ on _dexHTTPCallback pSocketID, pRequestA
                httpdResponse pSocketID, 200, ArrayToJSON(tA), tHeaders
                break
             case pRequestA["resource"] is "/feed"
-               if pRequestA["parameters"]["author"] is empty then
-                  httpdResponse pSocketID, 400, "error: no author given"
-               end if 
                put _dexFeed(pRequestA["parameters"]["author"], \
                      pRequestA["parameters"]["sequence_from"], \
                      pRequestA["parameters"]["limit"]) into tA
@@ -382,16 +385,15 @@ end _dexGet
 
 
 private function _dexFeed pAuthorID, pSequenceOffset, pLimit
-   if pSequenceOffset is empty then put 0 into pSequenceOffset
-   if pLimit is empty then put 100 into pLimit
-   
-   try
+   if pAuthorID then
       dbWhere "author", pAuthorID
+   end if
+   if pLimit is not empty then
       dbLimit pLimit
+   end if
+   if pSequenceOffset is not empty then
       dbWhere "sequence >=", pSequenceOffset
-   catch n
-      breakpoint
-   end try
+   end if
    
    put dbGet("feed", sConnectionID) into tA
    repeat for each key k in tA
@@ -438,12 +440,31 @@ private command _addToFeed pType, pDataA, pClaimedTimestamp
    if it is not 1 then
       throw "feederr: could not insert new entry:" && it
    end if
+   dexAnnounceSelf
    return tDataA["key"]   
 end _addToFeed
+
+function dexFeedHasKey pKey
+   dbWhere "key", pKey
+   dbLimit 1
+   dbColumns "key"
+   put dbGet("feed", sConnectionID) into tA
+   if tA[1]["key"] is pKey then
+      return true
+   else
+      return false
+   end if
+end dexFeedHasKey
 
 on _importToFeed pFeedA
    repeat for each key k in pFeedA
       put pFeedA[k] into tA
+      if tA["key"] is empty then
+         next repeat
+      end if
+      if dexFeedHasKey(tA["key"]) then
+         next repeat
+      end if
       put arraytojson(tA["content"]) into tA["content"]
       put the seconds into tA["timestamp_received"]
       get dbInsert("feed", tA, sConnectionID)
@@ -453,4 +474,5 @@ on _importToFeed pFeedA
          dexInfo "imported entry" && tA["key"]
       end if
    end repeat
+   dexAnnounceSelf
 end _importToFeed
