@@ -417,7 +417,9 @@ private command _addToFeed pType, pDataA, pClaimedTimestamp
    
    -- compute signature
    put arrayToJson(tDataA) into tTemp
-   encrypt tTemp using rsa with private key _dexAuthorPrivateKey()
+   put messageDigest(tTemp, "SHA-256") into tHash
+   
+   encrypt tHash using rsa with private key _dexAuthorPrivateKey()
    if the result is not empty then
       put the result into tError
       dexError "addtofeed error:" && tError
